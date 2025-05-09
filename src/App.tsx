@@ -1,11 +1,31 @@
-import { useState } from "react"
-import { format, addDays, startOfDay, isSameDay } from "date-fns"
+import { useState, useEffect } from "react"
+import {
+  format,
+  addDays,
+  startOfDay,
+  isSameDay,
+  startOfMonth,
+  endOfMonth,
+  eachDayOfInterval,
+  addMonths,
+  subMonths,
+} from "date-fns"
 import { es } from "date-fns/locale"
-import { Plus, ChevronLeft, ChevronRight } from "lucide-react"
+import { Plus, ChevronLeft, ChevronRight, Pencil, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 // Tipos
 type Habit = {
@@ -15,6 +35,7 @@ type Habit = {
   color: string
 }
 
+// Colores disponibles para los hábitos
 const COLORS = ["bg-green-500", "bg-blue-500", "bg-red-500", "bg-yellow-500", "bg-purple-500", "bg-pink-500"]
 
 function App() {
@@ -39,12 +60,23 @@ function App() {
     },
   ])
 
-  const [startDate, setStartDate] = useState(startOfDay(new Date()))
+  const [currentMonth, setCurrentMonth] = useState(new Date())
+  const [dates, setDates] = useState<Date[]>([])
   const [newHabitName, setNewHabitName] = useState("")
-  const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [habitToDelete, setHabitToDelete] = useState<string | null>(null)
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [habitToEdit, setHabitToEdit] = useState<Habit | null>(null)
+  const [editedHabitName, setEditedHabitName] = useState("")
 
-  // Generar fechas para el calendario (21 días)
-  const dates = Array.from({ length: 21 }, (_, i) => addDays(startDate, i))
+  // Generar fechas para el mes actual
+  useEffect(() => {
+    const monthStart = startOfMonth(currentMonth)
+    const monthEnd = endOfMonth(currentMonth)
+    const daysInMonth = eachDayOfInterval({ start: monthStart, end: monthEnd })
+    setDates(daysInMonth)
+  }, [currentMonth])
 
   // Manejar la adición de un nuevo hábito
   const handleAddHabit = () => {
@@ -57,8 +89,40 @@ function App() {
       }
       setHabits([...habits, newHabit])
       setNewHabitName("")
-      setIsDialogOpen(false)
+      setIsAddDialogOpen(false)
     }
+  }
+
+  // Manejar la edición de un hábito
+  const handleEditHabit = () => {
+    if (habitToEdit && editedHabitName.trim()) {
+      setHabits(habits.map((habit) => (habit.id === habitToEdit.id ? { ...habit, name: editedHabitName } : habit)))
+      setIsEditDialogOpen(false)
+      setHabitToEdit(null)
+      setEditedHabitName("")
+    }
+  }
+
+  // Abrir el diálogo de edición
+  const openEditDialog = (habit: Habit) => {
+    setHabitToEdit(habit)
+    setEditedHabitName(habit.name)
+    setIsEditDialogOpen(true)
+  }
+
+  // Manejar la eliminación de un hábito
+  const handleDeleteHabit = () => {
+    if (habitToDelete) {
+      setHabits(habits.filter((habit) => habit.id !== habitToDelete))
+      setIsDeleteDialogOpen(false)
+      setHabitToDelete(null)
+    }
+  }
+
+  // Abrir el diálogo de confirmación de eliminación
+  const openDeleteDialog = (habitId: string) => {
+    setHabitToDelete(habitId)
+    setIsDeleteDialogOpen(true)
   }
 
   // Manejar el toggle de completado de un hábito
@@ -87,14 +151,14 @@ function App() {
     )
   }
 
-  // Mover el calendario hacia atrás
-  const movePrevious = () => {
-    setStartDate(addDays(startDate, -7))
+  // Mover al mes anterior
+  const movePreviousMonth = () => {
+    setCurrentMonth(subMonths(currentMonth, 1))
   }
 
-  // Mover el calendario hacia adelante
-  const moveNext = () => {
-    setStartDate(addDays(startDate, 7))
+  // Mover al mes siguiente
+  const moveNextMonth = () => {
+    setCurrentMonth(addMonths(currentMonth, 1))
   }
 
   // Calcular estadísticas para cada hábito
@@ -139,7 +203,7 @@ function App() {
       <header className="flex items-center justify-between mb-6">
         <div className="flex items-center">
           <div className="bg-green-500 w-8 h-8 mr-2 rounded-sm"></div>
-          <h1 className="text-2xl font-bold">everyday</h1>
+          <h1 className="text-2xl font-bold">Ftkiss</h1>
         </div>
         <div>
           <span className="mr-4">Usuario</span>
@@ -151,10 +215,11 @@ function App() {
           <h2 className="text-lg font-medium">TODOS LOS HÁBITOS</h2>
         </div>
         <div className="flex items-center space-x-2">
-          <Button variant="outline" size="icon" onClick={movePrevious}>
+          <Button variant="outline" size="icon" onClick={movePreviousMonth}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <Button variant="outline" size="icon" onClick={moveNext}>
+          <span className="font-medium mx-2">{format(currentMonth, "MMMM yyyy", { locale: es })}</span>
+          <Button variant="outline" size="icon" onClick={moveNextMonth}>
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
@@ -163,11 +228,10 @@ function App() {
       <div className="overflow-x-auto">
         <div className="min-w-[1000px]">
           {/* Encabezado del calendario */}
-          <div className="grid grid-cols-[200px_repeat(21,minmax(40px,1fr))] gap-1 mb-2">
+          <div className="grid grid-cols-[200px_repeat(31,minmax(40px,1fr))] gap-1 mb-2">
             <div className="font-medium"></div>
             {dates.map((date, index) => (
               <div key={index} className="text-center">
-                <div className="font-medium">{format(date, "MMM", { locale: es })}</div>
                 <div className="font-bold">{format(date, "d", { locale: es })}</div>
                 <div className="text-xs uppercase">{format(date, "EEE", { locale: es })}</div>
               </div>
@@ -180,10 +244,25 @@ function App() {
               const stats = getHabitStats(habit)
 
               return (
-                <div key={habit.id} className="grid grid-cols-[200px_repeat(21,minmax(40px,1fr))] gap-1">
-                  <div className="flex items-center">
-                    <div className={cn("w-4 h-4 rounded-sm mr-2", habit.color)}></div>
-                    <span className="font-medium">{habit.name}</span>
+                <div key={habit.id} className="grid grid-cols-[200px_repeat(31,minmax(40px,1fr))] gap-1">
+                  <div className="flex items-center justify-between pr-2">
+                    <div className="flex items-center">
+                      <div className={cn("w-4 h-4 rounded-sm mr-2", habit.color)}></div>
+                      <span className="font-medium">{habit.name}</span>
+                    </div>
+                    <div className="flex space-x-1">
+                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => openEditDialog(habit)}>
+                        <Pencil className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={() => openDeleteDialog(habit.id)}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
                   </div>
 
                   {dates.map((date, dateIndex) => {
@@ -206,8 +285,8 @@ function App() {
           </div>
 
           {/* Fila para añadir nuevo hábito */}
-          <div className="grid grid-cols-[200px_repeat(21,minmax(40px,1fr))] gap-1 mt-4">
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <div className="grid grid-cols-[200px_repeat(31,minmax(40px,1fr))] gap-1 mt-4">
+            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
               <DialogTrigger asChild>
                 <Button variant="ghost" className="justify-start">
                   <Plus className="h-4 w-4 mr-2" />
@@ -268,6 +347,48 @@ function App() {
           )
         })}
       </div>
+
+      {/* Diálogo de edición de hábito */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar hábito</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Input
+                placeholder="Nombre del hábito"
+                value={editedHabitName}
+                onChange={(e) => setEditedHabitName(e.target.value)}
+              />
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={handleEditHabit}>Guardar</Button>
+            </DialogFooter>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Diálogo de confirmación de eliminación */}
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta acción no se puede deshacer. Se eliminará permanentemente este hábito y todos sus registros.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteHabit} className="bg-red-500 hover:bg-red-600">
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
